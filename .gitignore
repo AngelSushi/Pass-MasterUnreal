@@ -47,6 +47,11 @@ SourceArt/**/*.tga
 
 # Binary Files
 Binaries/*
+!Binaries/Win64
+Binaries/Win64/*
+!Binaries/Win64/PassMasterEditor.target
+!Binaries/Win64/UnrealEditor.modules
+!Binaries/Win64/UnrealEditor-PassMaster.dll
 Plugins/*/Binaries/*
 
 # Builds
