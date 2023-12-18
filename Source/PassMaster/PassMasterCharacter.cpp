@@ -59,12 +59,19 @@ void APassMasterCharacter::BeginPlay()
 	// Call the base class  
 	Super::BeginPlay();
 
+	GEngine->AddOnScreenDebugMessage(0,15.f,FColor::Yellow,TEXT("Begin Player"));
+
 	//Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
 	{
+
+		GEngine->AddOnScreenDebugMessage(0, 15.f, FColor::Yellow, TEXT("Cast Player"));
+
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
 		{
 			Subsystem->AddMappingContext(DefaultMappingContext, 0);
+
+			GEngine->AddOnScreenDebugMessage(0, 15.f, FColor::Yellow, TEXT("Set Mapping"));
 		}
 	}
 }
@@ -78,6 +85,8 @@ void APassMasterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent)) {
 		
 		// Jumping
+
+		GEngine->AddOnScreenDebugMessage(0, 15.f, FColor::Yellow, TEXT("Setup Input"));
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 
@@ -100,6 +109,8 @@ void APassMasterCharacter::Move(const FInputActionValue& Value)
 
 	if (Controller != nullptr)
 	{
+
+		GEngine->AddOnScreenDebugMessage(1, 15.f, FColor::Yellow, TEXT("Move Player"));
 		// find out which way is forward
 		const FRotator Rotation = Controller->GetControlRotation();
 		const FRotator YawRotation(0, Rotation.Yaw, 0);
