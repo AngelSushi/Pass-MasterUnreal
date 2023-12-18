@@ -46,7 +46,6 @@ class APassMasterCharacter : public ACharacter
 
 public:
 	APassMasterCharacter();
-	
 
 protected:
 
@@ -56,6 +55,11 @@ protected:
 	/** Called for looking input */
 	void Look(const FInputActionValue& Value);
 			
+	UFUNCTION()
+	void OnBeginOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	UFUNCTION()
+	void OnEndOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
 protected:
 	// APawn interface
