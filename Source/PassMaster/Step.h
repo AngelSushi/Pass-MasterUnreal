@@ -19,19 +19,20 @@ public:
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<class UStaticMeshComponent> InteriorMesh;
 
-	/*
+	UPROPERTY(EditAnywhere)
+	TObjectPtr<class UBoxComponent> BoxComponent;
+
+#if WITH_EDITORONLY_DATA
 	
-		- Action Quand On Arrive Dessus
-		- Action Quand on passe dessus ? 
-	
-	
-	*/
+	UPROPERTY(EditAnywhere)
+	TObjectPtr<class UArrowComponent> Arrow;
+
+#endif
 
 protected:
 	virtual void BeginPlay() override;
 
 public:	
-	virtual void Tick(float DeltaTime) override;
 
 	UFUNCTION() 
 	virtual void OnArriveOn(APassMasterCharacter* Character) override;

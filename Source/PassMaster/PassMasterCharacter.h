@@ -20,6 +20,11 @@ class APassMasterCharacter : public ACharacter
 {
 	GENERATED_BODY()
 
+	/* PENDING
+	*/
+
+
+
 	/** Camera boom positioning the camera behind the character */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	USpringArmComponent* CameraBoom;
@@ -44,8 +49,30 @@ class APassMasterCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* LookAction;
 
+	UPROPERTY(EditAnywhere,Category = Input)
+	UInputAction* StartFollowAction;
+
 public:
 	APassMasterCharacter();
+
+
+	UPROPERTY(EditAnywhere)
+	TObjectPtr<class ABoardPath> BoardPath;
+
+	UPROPERTY(EditAnywhere)
+	float Speed;
+
+	UPROPERTY(EditAnywhere)
+	float DiceResult;
+
+private:
+	float SplineDistance;
+
+	UPROPERTY(EditAnywhere)
+	bool bIsMoving;
+
+	UPROPERTY(EditAnywhere)
+	bool bIsTurn;
 
 protected:
 
@@ -69,9 +96,17 @@ protected:
 	virtual void BeginPlay();
 
 public:
+
+	virtual void Tick(float DeltaTime) override;
+
 	/** Returns CameraBoom subobject **/
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+
+	UFUNCTION()
+	void BeginTurn();
+
+	void StartFollow();
 };
 

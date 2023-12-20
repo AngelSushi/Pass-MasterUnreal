@@ -10,7 +10,10 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
-#include "Collisionnable.h"
+#include "Collisionnable.h"	
+#include "PathFinderSubSystem.h"
+#include "Components/SplineComponent.h"
+#include "BoardPath.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -19,6 +22,9 @@ DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
 APassMasterCharacter::APassMasterCharacter()
 {
+
+	PrimaryActorTick.bCanEverTick = true;
+
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
 		
@@ -60,8 +66,6 @@ void APassMasterCharacter::BeginPlay()
 	// Call the base class  
 	Super::BeginPlay();
 
-	GEngine->AddOnScreenDebugMessage(-1,15.f,FColor::Yellow,TEXT("Begin Player"));
-
 	//Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
 	{
@@ -73,15 +77,39 @@ void APassMasterCharacter::BeginPlay()
 
 	GetCapsuleComponent()->OnComponentBeginOverlap.AddDynamic(this,&APassMasterCharacter::OnBeginOverlap);
 	GetCapsuleComponent()->OnComponentEndOverlap.AddDynamic(this, &APassMasterCharacter::OnEndOverlap);
+
+	BeginTurn();
+}
+
+void APassMasterCharacter::BeginTurn() {
+	SetActorLocation(BoardPath->GetActorLocation() + BoardPath->Spline->GetSplinePointAt(0, ESplineCoordinateSpace::Local).Position);
+}
+
+void APassMasterCharacter::Tick(float DeltaTime) {
+	Super::Tick(DeltaTime);
+
+	if (bIsMoving) {
+		SplineDistance += DeltaTime * Speed;
+
+		FTransform NextTransform = UPathFinderSubSystem::GetNextPoint(BoardPath->Spline,SplineDistance);
+
+		SetActorLocation(FVector(NextTransform.GetLocation().X, NextTransform.GetLocation().Y,GetActorLocation().Z));
+		SetActorRotation(FRotator(GetActorRotation().Yaw, NextTransform.GetRotation().Rotator().Pitch, GetActorRotation().Roll));
+	}
+	
 }
 
 void APassMasterCharacter::OnBeginOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult) {
-
-	GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Yellow, TEXT("Begin Overlap"));
 	if (ICollisionnable* ICollision = Cast<ICollisionnable>(OtherActor)) {
-
-		GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Yellow, TEXT("On Arrive On Interface"));
-		ICollision->OnArriveOn(this);
+	
+		if (DiceResult > 0) {
+			ICollision->OnPassOver(this);
+			DiceResult--;
+		}
+		else {
+			ICollision->OnArriveOn(this);
+			bIsMoving = false;
+		}
 	}
 }
 
@@ -110,11 +138,18 @@ void APassMasterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 
 		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &APassMasterCharacter::Look);
+
+		// Follow
+		EnhancedInputComponent->BindAction(StartFollowAction, ETriggerEvent::Started, this,&APassMasterCharacter::StartFollow);
 	}
 	else
 	{
 		UE_LOG(LogTemplateCharacter, Error, TEXT("'%s' Failed to find an Enhanced Input component! This template is built to use the Enhanced Input system. If you intend to use the legacy system, then you will need to update this C++ file."), *GetNameSafe(this));
 	}
+}
+
+void APassMasterCharacter::StartFollow() {
+	bIsMoving = !bIsMoving;
 }
 
 void APassMasterCharacter::Move(const FInputActionValue& Value)
@@ -138,8 +173,9 @@ void APassMasterCharacter::Move(const FInputActionValue& Value)
 		AddMovementInput(ForwardDirection, MovementVector.Y);
 		AddMovementInput(RightDirection, MovementVector.X);
 	}
-}
 
+	
+}
 void APassMasterCharacter::Look(const FInputActionValue& Value)
 {
 	// input is a Vector2D
