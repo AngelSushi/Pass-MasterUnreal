@@ -37,6 +37,12 @@ public:
 	UPROPERTY(BlueprintReadWrite)
 	TObjectPtr<class UUserWidget> TransitionWidget;
 
+	UPROPERTY(EditAnywhere)
+	TSubclassOf<class UPlayerWidget> PlayerWidgetClass; // Leaderboard
+
+	UPROPERTY(BlueprintReadWrite)
+	TObjectPtr<class UPlayerWidget> PlayerWidget;
+
 public:
 
 	void BeginPlay() override;
@@ -54,6 +60,9 @@ public:
 	void OnRefreshDiceResult(float DiceResult);
 
 	UFUNCTION()
+	void OnInteractWithStep(APassMasterCharacter* Character, AStep* Step);
+
+	UFUNCTION()
 	virtual void OnBeginOrder(UGameManager* GM) override;
 
 	UFUNCTION()
@@ -64,6 +73,9 @@ public:
 
 	UFUNCTION()
 	void OnStartTransition();
+
+	//UFUNCTION()
+	//void OnDatasPlayerChanged(TArray<FPlayerData>& PlayersData);
 
 private:
 

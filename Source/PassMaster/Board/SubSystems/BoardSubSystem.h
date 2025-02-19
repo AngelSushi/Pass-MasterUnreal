@@ -2,24 +2,34 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "../../GameManager.h"
 #include "BoardSubSystem.generated.h"
 
 class UIsleBoardDataAsset;
 class UGameManager;
 class APassMasterGameMode;
 class APassMasterCharacter;
-enum EGameState;
 
-
+// Turn Events
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBeginTurnEvent);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBeginPlayerTurnEvent,APassMasterCharacter*,Character,UBoardSubSystem*, BoardSystem);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEndPlayerTurnEvent,APassMasterCharacter*,Character);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnEndTurnEvent);
+
+// Order Events
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBeginOrderEvent, UGameManager*,GM);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnUpdateOrderEvent, APassMasterCharacter*, Character, int16, OrderResult);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnEndOrderEvent);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnStartTransitionEvent);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnEndTransitionEvent);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnEndTurnEvent);	
+
+// Step Event 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnPassOverStepEvent, APassMasterCharacter*,Character, AStep*, Step);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnArriveOnStepEvent, APassMasterCharacter*, Character, AStep*, Step);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnLeaveStepEvent, APassMasterCharacter*, Character, AStep*, Step);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnStartCoinsAnimEvent, APassMasterCharacter*, Character, int16, Coins);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnEndCoinsAnimEvent);
+
 
 UCLASS()
 class PASSMASTER_API UBoardSubSystem : public UWorldSubsystem
@@ -29,6 +39,7 @@ class PASSMASTER_API UBoardSubSystem : public UWorldSubsystem
 
 public:
 
+	// Turn Events
 	UPROPERTY(VisibleAnywhere)
 	FOnBeginTurnEvent OnBeginTurnEvent;
 
@@ -38,6 +49,10 @@ public:
 	UPROPERTY(VisibleAnywhere)
 	FOnEndPlayerTurnEvent OnEndPlayerTurnEvent;
 
+	UPROPERTY(VisibleAnywhere)
+	FOnEndTurnEvent OnEndTurnEvent;
+
+	// Order Events
 	UPROPERTY(VisibleAnywhere)
 	FOnBeginOrderEvent OnBeginOrderEvent;
 
@@ -53,17 +68,29 @@ public:
 	UPROPERTY(VisibleAnywhere,BlueprintReadWrite,BlueprintAssignable,BlueprintCallable)
 	FOnEndTransitionEvent OnEndTransitionEvent;
 
+	// Step Events
 	UPROPERTY(VisibleAnywhere)
-	FOnEndTurnEvent OnEndTurnEvent;
+	FOnPassOverStepEvent OnPassOverStepEvent;
 
+	UPROPERTY(VisibleAnywhere)
+	FOnArriveOnStepEvent OnArriveOnStepEvent;
+
+	UPROPERTY(VisibleAnywhere)
+	FOnLeaveStepEvent OnLeaveStepEvent;
+
+	UPROPERTY(VisibleAnywhere)
+	FOnStartCoinsAnimEvent OnStartCoinsAnimEvent;
+
+	UPROPERTY(VisibleAnywhere)
+	FOnEndCoinsAnimEvent OnEndCoinsAnimEvent;
 	
 public:
-
 	void Initialize(FSubsystemCollectionBase& Collection) override;
+
+	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
 
 	void Deinitialize() override;
 
-	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
 
 	UFUNCTION()
 	void OnSetupBoardFinished(UGameManager* GM,APassMasterGameMode* GameMode);
@@ -84,19 +111,22 @@ public:
 	void OnEndTransition();
 
 	UFUNCTION()
-	void InitDice(APassMasterCharacter* Character);
+	void OnEndCoinsAnim();
+
+	UFUNCTION()
+	ADice* InitDice(APassMasterCharacter* Character);
 
 private:
 	UPROPERTY()
 	UIsleBoardDataAsset* BoardAsset;
 
 	UPROPERTY()
-	TObjectPtr<class UGameManager> GameManager;
-
-	UPROPERTY()
 	ACameraActor* MainCamera;
 
-	float ActualPlayerIndex = -1;
+	float ActualPlayerIndex = -1; UPROPERTY()
+	
+	APassMasterCharacter* ManagerOfCamera;
+
 	
 public:
 
@@ -109,7 +139,7 @@ public:
 	UFUNCTION()
 	void OnPlayerBeginTurn();
 
-	UFUNCTION()
+	UFUNCTION(BlueprintCallable)
 	void OnPlayerEndTurn();
 
 	UFUNCTION(BlueprintCallable)
@@ -117,4 +147,15 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	ACameraActor* GetMainCamera() { return MainCamera; }
+
+	UFUNCTION()
+	APassMasterCharacter* GetManagerOfCamera() { return ManagerOfCamera; }
+
+	UFUNCTION()
+	UIsleBoardDataAsset* GetBoardAsset() { return BoardAsset; }
+
+public:
+
+	UPROPERTY()
+	TObjectPtr<class UGameManager> GameManager;
 };

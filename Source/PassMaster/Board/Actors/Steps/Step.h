@@ -8,6 +8,7 @@
 
 class ICollisionnable;
 class IOrderEventAssignable;
+class UBoardSubSystem;
 
 UCLASS()
 class PASSMASTER_API AStep : public AActor,public ICollisionnable
@@ -55,4 +56,7 @@ public:
 	UFUNCTION()
 	virtual void OnLeave(APassMasterCharacter* Character) override;
 
+protected:
+	UPROPERTY()
+	UBoardSubSystem* BoardSystem;
 };

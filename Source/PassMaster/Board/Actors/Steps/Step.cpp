@@ -2,6 +2,9 @@
 #include "Components/ArrowComponent.h"
 #include "Components/BoxComponent.h"
 
+#include "PassMaster/Board/Core/PassMasterCharacter.h"
+#include "PassMaster/Board/SubSystems/BoardSubSystem.h"
+
 AStep::AStep() {
 	BorderMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Border Mesh"));
 	RootComponent = BorderMesh;
@@ -26,21 +29,21 @@ AStep::AStep() {
 #endif
 }
 
-void AStep::BeginPlay()
-{
+void AStep::BeginPlay() {
 	Super::BeginPlay();
-	
+
+	BoardSystem = GetWorld()->GetSubsystem<UBoardSubSystem>();
 }
 
 void AStep::OnArriveOn(APassMasterCharacter* Character) {
-	GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Yellow, TEXT("On Arrive On Step"));
+	BoardSystem->OnArriveOnStepEvent.Broadcast(Character, this);
 }
 
 void AStep::OnPassOver(APassMasterCharacter* Character) {
-
+	BoardSystem->OnPassOverStepEvent.Broadcast(Character, this);
 }
 
 void AStep::OnLeave(APassMasterCharacter* Character) {
-
+	BoardSystem->OnLeaveStepEvent.Broadcast(Character, this);
 }
 

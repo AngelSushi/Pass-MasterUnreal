@@ -3,13 +3,16 @@
 #include "Engine/GameInstance.h"
 #include "Camera/CameraComponent.h"
 #include "Camera/CameraActor.h"
+#include "Components/SplineComponent.h"
+#include "Kismet/KismetMathLibrary.h"
 
 #include "PassMaster/Board/Core/PassMasterGameMode.h"
 #include "PassMaster/Board/Core/PassMasterCharacter.h"
 #include "PassMaster/Board/Datas/IsleBoardDataAsset.h"
 #include "PassMaster/GameManager.h"
-#include "PassMaster/Board/Datas/PlayerData.h"
 #include "PassMaster/Board/Actors/Dice.h"
+#include "PassMaster/Board/Actors/Steps/Step.h"
+#include "PassMaster/Board/SubSystems/GridManager.h"
 
 void UBoardSubSystem::Initialize(FSubsystemCollectionBase& CollectionBase) {
 	Super::Initialize(CollectionBase);
@@ -39,6 +42,8 @@ void UBoardSubSystem::OnWorldBeginPlay(UWorld& InWorld) {
 
 	OnEndTransitionEvent.AddDynamic(this, &UBoardSubSystem::OnEndTransition);
 
+	OnEndCoinsAnimEvent.AddDynamic(this, &UBoardSubSystem::OnEndCoinsAnim);
+
 	MainCamera = Cast<ACameraActor>(UGameplayStatics::GetActorOfClass(GetWorld(), ACameraActor::StaticClass()));
 }
 
@@ -50,13 +55,27 @@ void UBoardSubSystem::OnSetupBoardFinished(UGameManager* GM, APassMasterGameMode
 	BoardAsset = GameMode->BoardAsset;
 	GameManager->GameState = BoardAsset->BeginGameState;
 
+	UGridManager* GridManager = GetWorld()->GetSubsystem<UGridManager>();
+	GridManager->SetupGrid(this, GetWorld());
+
 	switch (GameManager->GameState) {
 		case EGameState::CHOOSE_ORDER:
 			OnBeginOrderEvent.Broadcast(GM);
 			break;
 
 		case EGameState::PARTYGAME:
-			//OnEndTransition();
+			// Order PlayersData by Controller Class
+
+		/*	for (int i = 0; i < GameManager->PlayersData.Num(); i++) {
+				FPlayerData& PlayerData = GameManager->PlayersData[i];
+
+				if (APlayerController* PlayerController = Cast<APlayerController>(PlayerData.GetActor()->GetController())) {
+					GameManager->PlayersData.Swap(0, GameManager->PlayersData.IndexOfByKey(PlayerData));
+				}
+			}
+
+			OnEndTransition();
+			*/
 			break;
 
 		case EGameState::CHOOSE_MINIGAME:
@@ -68,21 +87,29 @@ void UBoardSubSystem::OnBeginOrder(UGameManager* GM) {
 	//GM->GameState = EGameState::CHOOSE_ORDER;
 
 	for (int16 i = 0; i < BoardAsset->PlayerCount; i++) {
-		FPlayerData& PlayerData = GM->PlayersData[i];
+		//FPlayerData& PlayerData = GM->PlayersData[i];
 
-		ADice* Dice = GetWorld()->SpawnActor<ADice>(BoardAsset->Dice);
-		Dice->SetActorLocation(PlayerData.GetActor()->GetActorLocation() + FVector::UpVector * 100.f);
+		//ADice* Dice = GetWorld()->SpawnActor<ADice>(BoardAsset->Dice);
+		//Dice->SetActorLocation(PlayerData.GetActor()->GetActorLocation() + FVector::UpVector * 100.f);
+
+		
+		/*ADice* Dice = InitDice(PlayerData.GetActor());
+
+		FRotator DiceRotation = UKismetMathLibrary::FindLookAtRotation(Dice->GetActorLocation(), GetMainCamera()->GetActorLocation());
+		Dice->SetActorRotation(FRotator(Dice->GetActorRotation().Pitch, DiceRotation.Yaw + 90 + 18, DiceRotation.Roll - 90));
+
 
 		if (APlayerController* PlayerController = Cast<APlayerController>(PlayerData.GetActor()->GetController())) {
 			PlayerController->SetViewTarget(MainCamera);
 		}
 
 		PlayerData.GetActor()->bCanJump = true;
+		*/
 	}
 }
 
 void UBoardSubSystem::OnUpdateOrder(APassMasterCharacter* Character, int16 DiceResult) {
-	if (GameManager->PlayersData.ContainsByPredicate([](const FPlayerData& PlayerData) { return PlayerData.GetOrder() == -1; })) { 
+	/*if (GameManager->PlayersData.ContainsByPredicate([](const FPlayerData& PlayerData) { return PlayerData.GetOrder() == -1; })) {
 
 		FPlayerData* PlayerData = GameManager->PlayersData.FindByPredicate([Character, DiceResult](FPlayerData& PlayerData) { return PlayerData.GetActor() == Character; });
 
@@ -100,7 +127,7 @@ void UBoardSubSystem::OnUpdateOrder(APassMasterCharacter* Character, int16 DiceR
 		}
 		
 	}	
-	
+	*/
 }
 
 void UBoardSubSystem::OnEndOrder() {
@@ -111,7 +138,7 @@ void UBoardSubSystem::OnStartTransition() {}
 
 void UBoardSubSystem::OnEndTransition() {
 
-	for (int16 i = 0; i < GameManager->PlayersData.Num(); i++) {
+	/*for (int16 i = 0; i < GameManager->PlayersData.Num(); i++) {
 		
 		int16 SpawnIndex = i;
 		SpawnIndex = FMath::Clamp(SpawnIndex, 0,GameManager->PlayersStart.Num() - 1);
@@ -130,19 +157,28 @@ void UBoardSubSystem::OnEndTransition() {
 		PlayerData.GetActor()->GetMesh()->SetVisibility(false);
 
 	}
+
+	ManagerOfCamera = GameManager->PlayersData.FindByPredicate([](const FPlayerData& PlayerData) {
+		return PlayerData.GetActor()->GetController()->IsA(APlayerController::StaticClass());
+		})->GetActor();
 	
 	OnBeginTurn();
+	*/
 }
 
 APassMasterCharacter* UBoardSubSystem::GetActualPlayer() {
-	return GameManager->PlayersData[ActualPlayerIndex].GetActor();
+	if (ActualPlayerIndex >= 0) {
+		//return GameManager->PlayersData[ActualPlayerIndex].GetActor();
+	}
+
+	return nullptr;
 }
 
 void UBoardSubSystem::OnBeginTurn() {
 
 	// All General Gestion
 
-	ActualPlayerIndex = -1;
+	ActualPlayerIndex = 0;
 	
 	OnBeginTurnEvent.Broadcast();
 	
@@ -150,21 +186,42 @@ void UBoardSubSystem::OnBeginTurn() {
 }
 
 void UBoardSubSystem::OnPlayerBeginTurn() {
-	ActualPlayerIndex++;
-	FMath::Clamp(ActualPlayerIndex, 0, GameManager->PlayerCount - 1);
-
 	OnBeginPlayerTurnEvent.Broadcast(GetActualPlayer(),this);
 }
 
 void UBoardSubSystem::OnPlayerEndTurn() {
 	OnEndPlayerTurnEvent.Broadcast(GetActualPlayer());
+
+	GEngine->AddOnScreenDebugMessage(-1, 15.F, FColor::Yellow, FString::Printf(TEXT("End Turn For %s"), *GetActualPlayer()->GetActorNameOrLabel()));
+
+	ActualPlayerIndex++;
+
+	if (ActualPlayerIndex >= GameManager->PlayerCount) {
+		OnEndTurn();
+	}
+	else {
+		APassMasterCharacter* TurnPlayer = GetActualPlayer();
+		
+		if (!TurnPlayer) {
+			return;
+		}
+
+		OnPlayerBeginTurn();
+	}
+
 }
 
 void UBoardSubSystem::OnEndTurn() {
 	OnEndTurnEvent.Broadcast();
 }
 
-void UBoardSubSystem::InitDice(APassMasterCharacter* Character) {
+void UBoardSubSystem::OnEndCoinsAnim() {
+	OnPlayerEndTurn();
+}
+
+ADice* UBoardSubSystem::InitDice(APassMasterCharacter* Character) {
 	ADice* Dice = GetWorld()->SpawnActor<ADice>(BoardAsset->Dice);
-	Dice->SetActorLocation(Character->GetActorLocation() + FVector::UpVector * 100.f);
+	Dice->SetActorLocation(Character->GetActorLocation() + FVector::UpVector * 150.f);
+
+	return Dice;
 }

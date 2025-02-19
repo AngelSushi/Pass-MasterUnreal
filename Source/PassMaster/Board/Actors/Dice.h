@@ -30,10 +30,10 @@ private:
 	TObjectPtr<class ABoardHUD> HUD;
 
 	UPROPERTY()
-	UGameManager* GameManager;
+	TObjectPtr<class UGameManager> GameManager;
 
 	UPROPERTY()
-	UBoardSubSystem* BoardSystem;
+	TObjectPtr<class UBoardSubSystem> BoardSystem;
 
 	float Timer;
 

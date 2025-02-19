@@ -6,18 +6,20 @@
 
 //#define ECC_STEP ECC_GameTraceChannel1;
 
-struct FPlayerData;
 class AStep;
 
 UENUM()
 enum EGameState : uint8 {
+	NONE,
 	CHOOSE_ORDER,
 	PARTYGAME,
 	CHOOSE_MINIGAME,
 	MINIGAME,
+	FREE,
 };
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSetupBoardFinished, UGameManager*,GameManager, APassMasterGameMode*, GameMode);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSetupBoardFinishedEvent, UGameManager*,GameManager, APassMasterGameMode*, GameMode);
+//DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDatasPlayerChangedEvent, TArray<FPlayerData>&, PlayersData);
 
 UCLASS()
 class PASSMASTER_API UGameManager : public UGameInstanceSubsystem
@@ -27,10 +29,13 @@ class PASSMASTER_API UGameManager : public UGameInstanceSubsystem
 public:
 
 	UPROPERTY(VisibleAnywhere)
-	FOnSetupBoardFinished OnSetupBoardFinished;
+	FOnSetupBoardFinishedEvent OnSetupBoardFinished;
 
-	UPROPERTY(EditAnywhere)
-	TArray<FPlayerData> PlayersData;
+	//UPROPERTY(VisibleAnywhere)
+	//FOnDatasPlayerChangedEvent OnDatasPlayerChanged;
+
+//	UPROPERTY(EditAnywhere,BlueprintReadWrite)
+//	TArray<FPlayerData> PlayersData;
 
 	UPROPERTY(EditAnywhere)
 	int16 PlayerCount;
@@ -47,6 +52,12 @@ public:
 	UPROPERTY()
 	TArray<AActor*> PlayersStart;
 
+	UPROPERTY()
+	TObjectPtr<class AStep> FirstStep;
+
+	UFUNCTION(BlueprintCallable)
+	void UpdateDatas();
+
 private:
 	UFUNCTION()
 	void OrderPlayersStart();
@@ -58,9 +69,8 @@ private:
 	AStep* FindFirstStep();
 
 	UFUNCTION()
-	void BoxRaycast(AActor* Actor,FVector Direction,TArray<FHitResult>& HitResults,bool bDebug);
+	void BoxRaycast(AActor* Actor,FVector Direction,TArray<FHitResult>& HitResults,bool bDebug,FVector Size = FVector(200.F,30.F,30.F));
 
 	UFUNCTION()
 	AActor* FindClosestStep(AActor* Actor,TArray<FHitResult>& HitResults,FVector Direction);
-
 };

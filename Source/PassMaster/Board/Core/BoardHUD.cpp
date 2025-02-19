@@ -9,6 +9,8 @@
 #include "PassMaster/Board/UMG/DiceResultWidget.h"
 #include "PassMaster/Board/UMG/OrderListWidget.h"
 #include "PassMaster/Board/UMG/OrderResultWidget.h"
+#include "PassMaster/Board/UMG/PlayerWidget.h"
+#include "PassMaster/GameManager.h"
 
 void ABoardHUD::BeginPlay() {
 	Super::BeginPlay();
@@ -21,18 +23,29 @@ void ABoardHUD::BeginPlay() {
 
 
 	BoardSystem->OnStartTransitionEvent.AddDynamic(this, &ABoardHUD::OnStartTransition);
+
+	BoardSystem->OnPassOverStepEvent.AddDynamic(this, &ABoardHUD::OnInteractWithStep);
+	BoardSystem->OnArriveOnStepEvent.AddDynamic(this, &ABoardHUD::OnInteractWithStep);
+
+	//BoardSystem->GameManager->OnDatasPlayerChanged.AddDynamic(this, &ABoardHUD::OnDatasPlayerChanged);
 }
 
 void ABoardHUD::OnBeginPlayerTurn(APassMasterCharacter* Character,UBoardSubSystem* BoardSubSystem) {
 
 	if (ActionWidgetClass) {
-		ActionWidget = CreateWidget<UActionWidget>(GetWorld(), ActionWidgetClass);
-		ActionWidget->AddToViewport();
-
 		if (APlayerController* PController = Cast<APlayerController>(Character->GetController())) {
 			PController->bShowMouseCursor = true;
+			ActionWidget = CreateWidget<UActionWidget>(GetWorld(), ActionWidgetClass);
+			ActionWidget->AddToViewport();
+
 			//UWidgetBlueprintLibrary::SetInputMode_UIOnlyEx(PController, ActionWidget, EMouseLockMode::DoNotLock);
 		}
+	}
+
+	if (!PlayerWidget && PlayerWidgetClass) {
+		PlayerWidget = CreateWidget<UPlayerWidget>(GetWorld(),PlayerWidgetClass);
+		//PlayerWidget->PlayerUIDatas = BoardSubSystem->GameManager->PlayersData;
+		PlayerWidget->AddToViewport();
 	}
 	
 }
@@ -90,7 +103,6 @@ void ABoardHUD::OnUpdateOrder(APassMasterCharacter* Character, int16 OrderResult
 
 void ABoardHUD::OnEndOrder() {}
 
-
 void ABoardHUD::OnStartTransition() {
 	for(UOrderResultWidget* OrderResultInstance : OrderResultsList) {
 		OrderResultInstance->RemoveFromViewport();
@@ -102,6 +114,23 @@ void ABoardHUD::OnStartTransition() {
 	}
 }
 
-void ABoardHUD::OnRefreshDiceResult(float DiceResult) {
-	DiceResultWidget->DiceResult = FString::FromInt(DiceResult);
+void ABoardHUD::OnInteractWithStep(APassMasterCharacter* Character, AStep* Step) {
+	OnRefreshDiceResult(Character->DiceResult);
 }
+
+void ABoardHUD::OnRefreshDiceResult(float DiceResult) {
+	if (DiceResult == 0.F) {
+		DiceResultWidget->RemoveFromParent();
+	}
+	else {
+		DiceResultWidget->DiceResult = FString::FromInt(DiceResult);
+	}
+}
+
+/*void ABoardHUD::OnDatasPlayerChanged(TArray<FPlayerData>& PlayersData) {
+	if (PlayerWidget) {
+		PlayerWidget->PlayerUIDatas = PlayersData;
+
+	}
+}
+*/

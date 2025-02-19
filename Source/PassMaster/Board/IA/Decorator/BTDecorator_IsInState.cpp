@@ -8,15 +8,9 @@ UBTDecorator_IsInState::UBTDecorator_IsInState() {
 bool UBTDecorator_IsInState::CalculateRawConditionValue(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const {
 	Super::CalculateRawConditionValue(OwnerComp, NodeMemory);
 
-	UBlackboardComponent* BlackboardComp = OwnerComp.GetBlackboardComponent();
-	if (BlackboardComp == nullptr)
-	{
-		return false; 
-	}
-
 	UGameManager* GameManager = GetWorld()->GetGameInstance()->GetSubsystem<UGameManager>();
 
-	if (GameManager->GameState == EGameState::CHOOSE_ORDER) {
+	if (State == GameManager->GameState) {
 		return true;
 	}
 	else {

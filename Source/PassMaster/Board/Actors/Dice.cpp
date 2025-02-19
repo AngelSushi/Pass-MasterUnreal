@@ -32,10 +32,6 @@ void ADice::BeginPlay()
 	
 	HUD = Cast<ABoardHUD>(UGameplayStatics::GetPlayerController(this,0)->GetHUD());
 
-	BoardSystem = GetWorld()->GetSubsystem<UBoardSubSystem>();
-	FRotator DiceRotation = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(),BoardSystem->GetMainCamera()->GetActorLocation());
-	SetActorRotation(FRotator(GetActorRotation().Pitch,DiceRotation.Yaw + 90 + 18,DiceRotation.Roll - 90));
-
 	UGameInstance* GameInstance = GetWorld()->GetGameInstance();
 	GameManager = GameInstance->GetSubsystem<UGameManager>();
 
@@ -72,6 +68,7 @@ void ADice::OnBeginOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherAct
 		}
 		else if (GameManager->GameState == EGameState::PARTYGAME) {
 			Character->DiceResult = DiceIndex;
+//			Character->UpdatePath();
 			HUD->OnCreateDiceResult();
 			HUD->OnRefreshDiceResult(DiceIndex);
 			Destroy();

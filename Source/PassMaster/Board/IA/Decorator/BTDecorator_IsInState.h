@@ -13,4 +13,7 @@
 		UBTDecorator_IsInState();
 
 		bool CalculateRawConditionValue(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const override;
+	
+		UPROPERTY(EditAnywhere)
+		int16 State;
 	};

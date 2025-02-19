@@ -13,15 +13,21 @@
 #include "Components/SplineComponent.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Camera/CameraActor.h"
+#include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetMathLibrary.h"
 
 
 #include "PassMaster/Board/Interfaces/Collisionnable.h"
-#include "PassMaster/Board/SubSystems/PathFinderSubSystem.h"
-#include "PassMaster/Board/Actors/BoardPath.h"
 #include "PassMaster/Board/SubSystems/BoardSubSystem.h"
 #include "PassMaster/GameManager.h"
+#include "PassMaster/Board/Actors/Steps/Step.h"
+#include "PassMaster/Board/Actors/BoardPath.h"
+#include "PassMaster/Board/Actors/Coins.h"
+#include "PassMaster/Board/SubSystems/GridManager.h"
 
 #include "Engine/World.h"
+#include "Blueprint/AIBlueprintHelperLibrary.h"
+#include "Kismet/KismetMathLibrary.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -30,7 +36,6 @@ DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
 APassMasterCharacter::APassMasterCharacter()
 {
-
 	PrimaryActorTick.bCanEverTick = true;
 
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
@@ -49,12 +54,13 @@ APassMasterCharacter::APassMasterCharacter()
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
 
-	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
-	FollowCamera->SetupAttachment(RootComponent); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
-	FollowCamera->bUsePawnControlRotation = false; 
+	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
+	CameraBoom->SetupAttachment(RootComponent);
+	CameraBoom->bUsePawnControlRotation = true;
 
-	StepCamPos = CreateDefaultSubobject<USceneComponent>(TEXT("Step Cam Pos"));
-	StepCamPos->SetupAttachment(RootComponent);
+	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
+	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); 
+	FollowCamera->bUsePawnControlRotation = false;
 }
 
 void APassMasterCharacter::BeginPlay()
@@ -67,7 +73,7 @@ void APassMasterCharacter::BeginPlay()
 
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
 		{
-			Subsystem->AddMappingContext(DefaultMappingContext, 0);
+			Subsystem->AddMappingContext(PlayerMappingContext, 0);
 		}
 	}
 
@@ -77,69 +83,112 @@ void APassMasterCharacter::BeginPlay()
 	BoardSystem = GetWorld()->GetSubsystem<UBoardSubSystem>();
 
 	BoardSystem->OnBeginPlayerTurnEvent.AddDynamic(this, &APassMasterCharacter::OnPlayerBeginTurn);
+	BoardSystem->OnEndPlayerTurnEvent.AddDynamic(this, &APassMasterCharacter::OnPlayerEndTurn);
 }
 
 void APassMasterCharacter::OnPlayerBeginTurn(APassMasterCharacter* Character,UBoardSubSystem* BoardSubSystem) {
 	if (Character != this) {
 		return;
 	}
+
+	bIsTurn = true;
 	
 	if (!GetMesh()->IsVisible()) {
 		GetMesh()->SetVisibility(true);
 	}
 
-	FollowCamera->Deactivate();
-	
-	BoardSystem->GetMainCamera()->SetActorLocation(StepCamPos->GetComponentLocation());
+	if (!PController) {
+		bCanJump = true;
+	}
 
-	// Rotate Camera To Face Player 
-	FRotator CameraRotation = UKismetMathLibrary::FindLookAtRotation(BoardSystem->GetMainCamera()->GetActorLocation(), GetActorLocation());
-	FRotator OriginalRotation = BoardSystem->GetMainCamera()->GetActorRotation();
-	BoardSystem->GetMainCamera()->SetActorRotation(FRotator(OriginalRotation.Pitch,CameraRotation.Yaw,OriginalRotation.Roll));
+	FViewTargetTransitionParams Params;
+	BoardSystem->GetMainCamera()->GetCameraComponent()->SetActive(true);
+	BoardSystem->GetMainCamera()->SetActorLocation(TurnCamPosition->GetComponentLocation());
+	BoardSystem->GetMainCamera()->SetActorRelativeRotation(TurnCamPosition->GetRelativeRotation());
+
+	BoardSystem->GetManagerOfCamera()->PController->SetViewTarget(BoardSystem->GetMainCamera(), Params);
+
+	UGridManager* GridManager = GetWorld()->GetSubsystem<UGridManager>();
+//	GridManager->CalculateGridForPath(GetActorLocation(), 6);
+}
+
+void APassMasterCharacter::OnPlayerEndTurn(APassMasterCharacter* Character) {
+	if (Character != this) {
+		return;
+	}
+
+	bIsTurn = false;
 }
 
 
 void APassMasterCharacter::Tick(float DeltaTime) {
 	Super::Tick(DeltaTime);
 
-	if (GetCharacterMovement()->IsMovingOnGround() && DiceResult > 0 && !bIsMoving) {
-		bIsMoving = true;
-		FollowCamera->Activate();
-	}
+	if (bIsTurn) {
+		if (GetCharacterMovement()->IsMovingOnGround() && DiceResult > 0 && !bIsMoving) {
+			bIsMoving = true;
 
-	if (bIsMoving) {
-		SplineDistance += DeltaTime * Speed;
+			FViewTargetTransitionParams Params;
+			BoardSystem->GetMainCamera()->GetCameraComponent()->SetActive(false);
+			
+			if (PController) {
+				FollowCamera->SetActive(true);
+				PController->SetViewTarget(FollowCamera->GetAttachParentActor(), Params);
+			}
+			else {
+				APassMasterCharacter* TurnPlayer = BoardSystem->GetActualPlayer();
 
-		FTransform NextTransform = UPathFinderSubSystem::GetNextPoint(BoardPath->Spline,SplineDistance);
+				if (!TurnPlayer) {
+					return;
+				}
 
-		FRotator Rotation = UKismetMathLibrary::FindLookAtRotation(FVector(GetActorLocation().X,GetActorLocation().Y,0.f)
-			,FVector(NextTransform.GetLocation().X,NextTransform.GetLocation().Y,0.F));
+				TurnPlayer->FollowCamera->SetActive(true);
+				BoardSystem->GetManagerOfCamera()->PController->SetViewTarget(TurnPlayer->FollowCamera->GetAttachParentActor(), Params);
 
-		SetActorLocation(FVector(NextTransform.GetLocation().X, NextTransform.GetLocation().Y,GetActorLocation().Z));
-		SetActorRotation(Rotation);
+			}
+		}
+
+		if (bIsMoving) {
+			if (Destination != FVector::Zero()) {
+				GEngine->AddOnScreenDebugMessage(-1, 15000.F, FColor::Yellow, FString::Printf(TEXT("Move To %s"), *Destination.ToString()));
+				UAIBlueprintHelperLibrary::SimpleMoveToLocation(PController, Destination);
+				
+			}
+		}
 	}
 }
 
 void APassMasterCharacter::OnBeginOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult) {
+	if (!bIsTurn) {
+		return;
+	}
+	
 	if (ICollisionnable* ICollision = Cast<ICollisionnable>(OtherActor)) {
 	
 		if (!bIsMoving) {
 			return;
 		}
 
-		if (DiceResult > 0) {
-			DiceResult--;
-			ICollision->OnPassOver(this);
-		}
-		else {
+		DiceResult--;
+		ICollision->OnPassOver(this);
+
+		if (DiceResult == 0) {
 			ICollision->OnArriveOn(this);
 			bIsMoving = false;
 		}
+	}
+
+	if(OtherActor->IsA(ACoins::StaticClass())) {
+		GetWorld()->DestroyActor(OtherActor);
 	}
 }
 
 
 void APassMasterCharacter::OnEndOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex) {
+	if (!bIsTurn) {
+		return;
+	}
+	
 	if (ICollisionnable* ICollision = Cast<ICollisionnable>(OtherActor)) {
 		if (!bIsMoving) {
 			return;
@@ -151,22 +200,12 @@ void APassMasterCharacter::OnEndOverlap(UPrimitiveComponent* OverlappedComp, AAc
 
 void APassMasterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
-	// Set up action bindings
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent)) {
-		
-		// Jumping
-
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &APassMasterCharacter::Jump);
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 
-		// Moving
-		//EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &APassMasterCharacter::Move);
-
-		// Looking
-		//EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &APassMasterCharacter::Look);
-
-		// Follow
-		EnhancedInputComponent->BindAction(StartFollowAction, ETriggerEvent::Started, this,&APassMasterCharacter::StartFollow);
+		EnhancedInputComponent->BindAction(ClickAction, ETriggerEvent::Triggered, this, &APassMasterCharacter::OnTriggerMovement);
+		EnhancedInputComponent->BindAction(ClickAction, ETriggerEvent::Completed, this, &APassMasterCharacter::OnCompleteMovement);
 	}
 	else
 	{
@@ -174,53 +213,50 @@ void APassMasterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 	}
 }
 
-void APassMasterCharacter::Jump() {
-	if (bCanJump) {
-		Super::Jump();
-		bCanJump = false;
+void APassMasterCharacter::OnTriggerMovement() {
+	FHitResult HitResult;
+
+	if (PController->GetHitResultUnderCursor(ECC_Visibility,false,HitResult)) {
+		Destination = HitResult.GetActor()->GetActorLocation();
+
+		//FVector UnitWorldVector = Destination;
+		//FVector UnitVector = UKismetMathLibrary::GetDirectionUnitVector(GetActorLocation(), UnitWorldVector);
+
+		//GEngine->AddOnScreenDebugMessage(-1, 15000.F, FColor::Yellow, FString::Printf(TEXT("Trigger Movement %s"),*UnitVector.ToString()));
+
+		//AddMovementInput(UnitVector,1.F);
 	}
 }
 
-void APassMasterCharacter::StartFollow() {
-	//bIsMoving = !bIsMoving;
-}
+void APassMasterCharacter::OnCompleteMovement() {
 
-void APassMasterCharacter::Move(const FInputActionValue& Value)
-{
-	// input is a Vector2D
-	FVector2D MovementVector = Value.Get<FVector2D>();
+	APlayerController* PlayerController = Cast<APlayerController>(Controller);
 
-	if (Controller != nullptr)
-	{
-		GEngine->AddOnScreenDebugMessage(1, -15.F, FColor::Yellow, TEXT("Je suis ici en moove"));
+	if (!PlayerController) {
+		return;
+	}
 
-		// find out which way is forward
-		const FRotator Rotation = Controller->GetControlRotation();
-		const FRotator YawRotation(0, Rotation.Yaw, 0);
+	float MouseX, MouseY;
+	PlayerController->GetMousePosition(MouseX, MouseY);
 
-		// get forward vector
-		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+	FVector WorldLocation, WorldDirection;
+	PlayerController->DeprojectScreenPositionToWorld(MouseX, MouseY,WorldLocation,WorldDirection);
+	GEngine->AddOnScreenDebugMessage(-1, 15000.F, FColor::Orange, FString::Printf(TEXT("Mouse Position %s"), *WorldLocation.ToString()));
 	
-		// get right vector 
-		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+	TArray<FHitResult> Result;
+	FVector Start = WorldLocation;
+	FVector End = Start + WorldDirection * 10000;
 
-		// add movement 
-		AddMovementInput(ForwardDirection, MovementVector.Y);
-		AddMovementInput(RightDirection, MovementVector.X);
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(this);
 
+	if (GetWorld()->LineTraceMultiByChannel(Result, Start, End, ECC_Visibility, Params)) {
+		GEngine->AddOnScreenDebugMessage(-1, 15000.F, FColor::Magenta, FString::Printf(TEXT("Result %d"), Result.Num()));
+		for (FHitResult R : Result) {
+			GEngine->AddOnScreenDebugMessage(-1, 15000.F, FColor::Orange, FString::Printf(TEXT("Name %s"), *R.GetActor()->GetActorNameOrLabel()));
+
+		}
 	}
-
 	
-}
-void APassMasterCharacter::Look(const FInputActionValue& Value)
-{
-	// input is a Vector2D
-	FVector2D LookAxisVector = Value.Get<FVector2D>();
 
-	if (Controller != nullptr)
-	{
-		// add yaw and pitch input to controller
-		AddControllerYawInput(LookAxisVector.X);
-		AddControllerPitchInput(LookAxisVector.Y);
-	}
 }

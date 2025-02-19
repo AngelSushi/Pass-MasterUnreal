@@ -7,7 +7,6 @@
 #include "PassMaster/Board/Core/PassMasterGameMode.h"
 #include "PassMaster/Board/Datas/IsleBoardDataAsset.h"
 #include "PassMaster/Board/SubSystems/BoardSubSystem.h"
-#include "PassMaster/Board/Datas/PlayerData.h"
 #include "PassMaster/Board/Core/PassMasterCharacter.h"
 #include "PassMaster/Board/Actors/Steps/Step.h"
 #include "PassMaster/Board/Actors/Steps/DirectionStep.h"
@@ -18,19 +17,31 @@ void UGameManager::Initialize(FSubsystemCollectionBase& Collection) {
 
 void UGameManager::SetupBoard() {
 	GEngine->AddOnScreenDebugMessage(-1, 15.F, FColor::Black, TEXT("Setup Board In Progress"));
+	
+	APassMasterGameMode* GameMode = Cast<APassMasterGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
+	FTimerHandle WaitSendEvent;
+	
+	GetWorld()->GetTimerManager().SetTimer(WaitSendEvent, [this, GameMode, &WaitSendEvent]() {
+		GEngine->AddOnScreenDebugMessage(-1, 15.F, FColor::Black, TEXT("Setup Board Finished"));
+		OnSetupBoardFinished.Broadcast(this, GameMode);
+		GetWorld()->GetTimerManager().ClearTimer(WaitSendEvent);
+		}, 0.2f, false);
+
+	/*
 
 	APassMasterGameMode* GameMode = Cast<APassMasterGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
 	FTimerHandle WaitSendEvent;
 
 	UIsleBoardDataAsset* BoardAsset = GameMode->BoardAsset;
+	PlayerCount = BoardAsset->PlayerCount;
 
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), APlayerStart::StaticClass(), PlayersStart);
 	OrderPlayersStart();
 
 	// OrderSteps
-	AStep* FirstStep = FindFirstStep();
+	FirstStep = FindFirstStep();
 
-	//AssignSteps();
+	AssignSteps();
 
 	for (int16 i = 0; i < BoardAsset->PlayerCount; i++) {
 
@@ -48,16 +59,17 @@ void UGameManager::SetupBoard() {
 		UGameplayStatics::SetPlayerControllerID(Cast<APlayerController>(NewCharacter->GetController()), i);
 		NewCharacter->bCanJump = false;
 
-		FPlayerData TestData(NewCharacter, FString("User00" + (i+1)),-1, (i + 1), 0, 0);
-		PlayersData.Add(TestData);
+		//FPlayerData TestData(NewCharacter, FString("User00" + (i+1)),-1, (i + 1), 0, 0);
+		//PlayersData.Add(TestData);
 	}
-
 
 	GetWorld()->GetTimerManager().SetTimer(WaitSendEvent, [this, GameMode,&WaitSendEvent]() {	
 		GEngine->AddOnScreenDebugMessage(-1, 15.F, FColor::Black, TEXT("Setup Board Finished"));
 		OnSetupBoardFinished.Broadcast(this,GameMode);
 		GetWorld()->GetTimerManager().ClearTimer(WaitSendEvent);
 	}, 0.2f, false);
+
+	*/
 		
 }
 
@@ -69,7 +81,7 @@ void UGameManager::AssignSteps() { // Calculation Of Next And Previous Step For 
 	TArray<AActor*> Steps;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AStep::StaticClass(), Steps);	
 
-	/*for (AActor* Actor : Steps) {
+	for (AActor* Actor : Steps) {
 		if (AStep* Step = Cast<AStep>(Actor)) {
 			TArray<FHitResult> RaycastResults;
 			BoxRaycast(Step, Step->GetActorForwardVector(), RaycastResults, false);
@@ -90,20 +102,27 @@ void UGameManager::AssignSteps() { // Calculation Of Next And Previous Step For 
 				Step->PreviousStep = PreviousStep;
 			}
 		}
-	}*/
+	}
 }
 
 AStep* UGameManager::FindFirstStep() {
 	TArray<FHitResult> HitResults;
 
-	BoxRaycast(PlayersStart[PlayersStart.Num() - 1], PlayersStart[PlayersStart.Num() - 1]->GetActorRightVector() * -1, HitResults, false);
-	return Cast<AStep>(HitResults[0].GetActor());
+	BoxRaycast(PlayersStart[PlayersStart.Num() - 1], PlayersStart[PlayersStart.Num() - 1]->GetActorRightVector() * -1, HitResults,false,FVector(200.F,30.F,100.F));
+
+	if (HitResults.Num() > 0) {
+		return Cast<AStep>(HitResults[0].GetActor());
+	}
+
+	GEngine->AddOnScreenDebugMessage(-1, 15.F, FColor::Red, TEXT("Error when finding first step"));
+	return nullptr;
+	
 }
 
-void UGameManager::BoxRaycast(AActor* Actor,FVector Direction,TArray<FHitResult>& HitResults,bool bDebug) {
+void UGameManager::BoxRaycast(AActor* Actor,FVector Direction,TArray<FHitResult>& HitResults,bool bDebug,FVector SizeVector /* = FVector(200.F,30.F,30.F) */) {
 	float Size = 200.F;
 
-	FCollisionShape BoxRaycast = FCollisionShape::MakeBox(FVector(Size, 30.F, 50.f));
+	FCollisionShape BoxRaycast = FCollisionShape::MakeBox(SizeVector);
 
 	FVector Start = Actor->GetActorLocation();
 	FVector End = Start + Direction * Size;
@@ -166,3 +185,6 @@ AActor* UGameManager::FindClosestStep(AActor* Actor, TArray<FHitResult>& HitResu
 	return ClosestStep;
 }
 
+void UGameManager::UpdateDatas() {
+	//OnDatasPlayerChanged.Broadcast(PlayersData);
+}

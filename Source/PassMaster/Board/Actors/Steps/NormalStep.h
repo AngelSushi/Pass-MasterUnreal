@@ -14,7 +14,7 @@ public:
 	ANormalStep();
 
 	UPROPERTY(EditAnywhere)
-	uint16 Coins;
+	int Coins;
 
 protected:
 	virtual void BeginPlay() override;
@@ -24,7 +24,4 @@ public:
 	virtual void OnArriveOn(APassMasterCharacter* Character) override;
 	virtual void OnPassOver(APassMasterCharacter* Character) override;
 
-private:
-	UPROPERTY()
-	TObjectPtr<class ABoardHUD> HUD;
 };
